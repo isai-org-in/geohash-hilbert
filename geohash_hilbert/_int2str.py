@@ -27,7 +27,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 def encode_int(code, bits_per_char=6):
     '''Encode int into a string preserving order
 
-    It is using 2, 4 or 6 bits per coding character (default 6).
+    It is using 2, 4, 5 or 6 bits per coding character (default 6).
 
     Parameters:
         code: int           Positive integer.
@@ -41,18 +41,20 @@ def encode_int(code, bits_per_char=6):
 
     if bits_per_char == 6:
         return _encode_int64(code)
-    if bits_per_char == 4:
+    elif bits_per_char == 5:
+        return _encode_int32(code)    
+    elif bits_per_char == 4:
         return _encode_int16(code)
-    if bits_per_char == 2:
+    elif bits_per_char == 2:
         return _encode_int4(code)
 
-    raise ValueError('`bits_per_char` must be in {6, 4, 2}')
+    raise ValueError('`bits_per_char` must be in {6, 5, 4, 2}')
 
 
 def decode_int(tag, bits_per_char=6):
     '''Decode string into int assuming encoding with `encode_int()`
 
-    It is using 2, 4 or 6 bits per coding character (default 6).
+    It is using 2, 4, 5 or 6 bits per coding character (default 6).
 
     Parameters:
         tag: str           Encoded integer.
@@ -63,12 +65,14 @@ def decode_int(tag, bits_per_char=6):
     '''
     if bits_per_char == 6:
         return _decode_int64(tag)
-    if bits_per_char == 4:
+    elif bits_per_char == 5:
+        return _decode_int32(tag)    
+    elif bits_per_char == 4:
         return _decode_int16(tag)
-    if bits_per_char == 2:
+    elif bits_per_char == 2:
         return _decode_int4(tag)
 
-    raise ValueError('`bits_per_char` must be in {6, 4, 2}')
+    raise ValueError('`bits_per_char` must be in {6, 5, 4, 2}')
 
 
 # Own base64 encoding with integer order preservation via lexicographical (byte) order.
@@ -80,6 +84,13 @@ _BASE64 = (
     'abcdefghijklmnopqrstuvwxyz'  # + 26    0x61 - 0x7A
 )                                 # = 64    0x30 - 0x7A
 _BASE64_MAP = {c: i for i, c in enumerate(_BASE64)}
+
+# Own base32 encoding with integer order preservation via lexicographical (byte) order.
+_BASE32 = (
+    '0123456789'  # noqa: E262    #   10    0x30 - 0x39
+    'ABCDEFGHJKLMNPQRTUVWXYZ'     # + 22    0x41 - 0x5A
+)                                 # = 32    0x30 - 0x7A
+_BASE32_MAP = {c: i for i, c in enumerate(_BASE32)}
 
 
 def _encode_int64(code):
@@ -96,6 +107,23 @@ def _decode_int64(t):
     for ch in t:
         code <<= 6
         code += _BASE64_MAP[ch]
+    return code
+
+
+def _encode_int32(code):
+    code_len = (code.bit_length() + 4) // 5  # 5 bit per code point
+    res = ['0'] * code_len
+    for i in range(code_len - 1, -1, -1):
+        res[i] = _BASE32[code & 0b11111]
+        code >>= 5
+    return ''.join(res)
+
+
+def _decode_int32(t):
+    code = 0
+    for ch in t:
+        code <<= 5
+        code += _BASE32_MAP[ch]
     return code
 
 
